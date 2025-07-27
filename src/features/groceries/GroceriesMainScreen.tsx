@@ -5,14 +5,21 @@ import getRepositories from '@repositories';
 import { Container, ContainerFixedContent, ContainerScrollContent } from '@components/conteiners';
 import Icon from '@components/Icons';
 import { getExpirationLabel } from './expirationUtils';
+import { showErrorToast } from '../../errorHandling';
 import './GroceriesMainScreen.css';
 
 const GroceriesMainScreen = () => {
   const [items, setItems] = useState<GroceryItemModel[]>([]);
 
   useEffect(() => {
-    const { groceries } = getRepositories();
-    setItems(groceries.getAllSorted());
+    try {
+      const { groceries } = getRepositories();
+      setItems(groceries.getAllSorted());
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      const stack = e instanceof Error ? e.stack : undefined;
+      showErrorToast(msg, stack);
+    }
   }, []);
 
   return <Container spaced full>
