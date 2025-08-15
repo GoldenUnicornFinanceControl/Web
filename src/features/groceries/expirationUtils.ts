@@ -25,6 +25,5 @@ export function getExpirationLabel(item: GroceryItemModel): ExpirationLabel | un
     return { label: Lang.groceries.thisMonth, color: 'var(--color-info)' };
   }
 
-  return undefined;
   return { label: Lang.groceries.valid, color: 'var(--color-success)' };
 }

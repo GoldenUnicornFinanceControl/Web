@@ -22,6 +22,7 @@ const categoryParamName = 'c';
 const TimelineScreen = () => {
   const [showArchived, setShowArchived] = useState(false)
   const [registries, setRegistries] = useState<RegistryWithDetails[]>([]);
+  const [selectedMonth, setSelectedMonth] = useState(new Date());
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
   const [total, setTotal] = useState(0);
   const params = useParams<{ id?: string }>();
@@ -36,10 +37,12 @@ const TimelineScreen = () => {
       setSelectedAccount(null);
     }
 
-    let items = accounts.getAccountItems(params.id, showAll);
+    const startOfMonth = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1);
+    const endOfMonth = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0, 23, 59, 59, 999);
+    let items = accounts.getAccountItems(params.id, showAll, startOfMonth, endOfMonth);
     setTotal(items.balance);
     setRegistries(items.registries);
-  }, [params.id, showArchived]);
+  }, [params.id, showArchived, selectedMonth]);
 
   const [searchParams, setSearchParams] = useSearchParams();
   const categoriaParam = searchParams.get(categoryParamName);
@@ -61,7 +64,16 @@ const TimelineScreen = () => {
   }
 
   let perDayTotal = total;
-  let currentDay = registries[0]?.registry.date.getDate();
+  let currentDay = filteredRegistries[0]?.registry.date.getDate();
+
+  const changeMonth = (delta: number) => {
+    setSelectedMonth(prev => {
+      const newDate = new Date(prev);
+      newDate.setMonth(prev.getMonth() + delta);
+      return newDate;
+    });
+  };
+  const monthLabel = selectedMonth.toLocaleString(navigator.language, { month: 'long', year: 'numeric' });
   return <Container spaced full>
     <ContainerFixedContent>
       <div className="ScreenHeaderRow">
@@ -84,6 +96,11 @@ const TimelineScreen = () => {
             {Lang.accounts.showArchived}
           </label>
         </div>}
+      </div>
+      <div className="ScreenHeaderRow MonthSelector">
+        <button onClick={() => changeMonth(-1)}><Icon icon={Icon.all.faChevronLeft} /></button>
+        <span>{monthLabel}</span>
+        <button onClick={() => changeMonth(1)}><Icon icon={Icon.all.faChevronRight} /></button>
       </div>
       <div className="ScreenHeaderRow">
         <div className="ScreenTotal">
