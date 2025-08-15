@@ -19,13 +19,17 @@ export default class AccountsRepository extends RepositoryWithCrypt<Account> {
     return this.getAccountItems(accountId, showArchived).balance;
   }
 
-  public getAccountItems(accountId?: string, showArchived: boolean = false): {
+  public getAccountItems(
+    accountId?: string,
+    showArchived: boolean = false,
+    startDate?: Date,
+    endDate?: Date,
+  ): {
     registries: RegistryWithDetails[],
     balance: number
   } {
     const { categories, accountRegistries, creditCards, creditCardsInvoices } = getRepositories();
 
-    const now = new Date();
     const debit = accountRegistries.getCache()
       .filter(registry => accountId
           ? registry.accountId === accountId
@@ -45,13 +49,16 @@ export default class AccountsRepository extends RepositoryWithCrypt<Account> {
         sourceName: this.getLocalById(invoice.paymentAccountId)?.name || 'Unknown Source',
       }));
 
-    const registries = ([...debit, ...credit])
-      .filter((item) => item.registry.date.getTime() <= now.getTime())
+    const allRegistries = ([...debit, ...credit])
+      .filter((item) => !endDate || item.registry.date.getTime() <= endDate.getTime())
       .sort(({registry: {date: a}}, {registry: {date: b}}) => b.getTime() - a.getTime());
+
+    const registries = allRegistries
+      .filter(item => !startDate || item.registry.date.getTime() >= startDate.getTime());
 
     return {
       registries,
-      balance: AccountsRepository.balanceCache[accountId || ''] = registries.reduce((acc, item) =>
+      balance: AccountsRepository.balanceCache[accountId || ''] = allRegistries.reduce((acc, item) =>
         item.registry.paid ? acc + item.registry.value : acc,
         this.getLocalById(accountId)?.initialBalance ?? 0
       )
