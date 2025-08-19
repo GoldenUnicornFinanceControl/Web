@@ -1,5 +1,4 @@
 import { Link } from 'react-router-dom';
-import Lang from '@lang';
 import PlanCard from '../components/PlanCard';
 import FeatureTable from '../components/FeatureTable';
 import { plans } from '../data/plans';

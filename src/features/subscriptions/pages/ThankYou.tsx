@@ -1,4 +1,3 @@
-import Lang from '@lang';
 
 const ThankYou: React.FC = () => (
   <div style={{ padding: 16, textAlign: 'center', lineHeight: 1.6 }}>
