@@ -20,6 +20,8 @@ export default class AIActionsParser<
 > {
   private openai: OpenAI;
   private chatHistory: ChatCompletionMessageParam[] = [];
+  private toolHandlers: Record<string, (args: any) => any> = {};
+  private toolDefs: any[] = [];
 
   public items: WithChanged<T>[] = [];
   public onAction: AIActionHandler<T, A> = () => {};
@@ -31,10 +33,22 @@ export default class AIActionsParser<
     private config: AIConfig,
     private normalizer: AIItemTransformer<T> = (item) => item,
     private itemContextMap: AIItemTransformer<T> = ({ id, name }) =>
-      ({ id, name } as Partial<T>)
+      ({ id, name } as Partial<T>),
+    tools: AITool[] = []
   ) {
     this.items = [];
     this.openai = this.initOpenAI();
+    this.toolDefs = tools.map((t) => ({
+      type: "function",
+      function: {
+        name: t.name,
+        description: t.description,
+        parameters: t.parameters,
+      },
+    }));
+    this.toolHandlers = Object.fromEntries(
+      tools.map((t) => [t.name, t.handler])
+    );
   }
 
   public async parse(
@@ -210,49 +224,57 @@ Context:
     const model: AiModel = "gpt-5-nano";
 
     addResourceUse({ ai: { [model]: { requests: 1 } } });
-    const stream = await this.openai.chat.completions.create({
-      model,
-      messages,
-      stream: true,
-      stream_options: { include_usage: true },
-      reasoning_effort: 'minimal',
-      // temperature: 0.1,
-      // tool_choice: 'none',
-      // tools: [],
-      // top_p: 0.3,
-    });
-
-    let full = "";
-    let tokens = {
-      input: 0,
-      output: 0,
-    };
-    for await (const chunk of stream) {
-      const delta = chunk?.choices?.[0]?.delta?.content ?? "";
-      if (delta) {
-        full += delta;
-        onStream?.(delta);
-      }
-      tokens.input += chunk?.usage?.prompt_tokens || 0;
-      tokens.output += chunk?.usage?.completion_tokens || 0;
+    let tokens = { input: 0, output: 0 };
+    while (true) {
+      const response = await this.openai.chat.completions.create({
+        model,
+        messages,
+        tools: this.toolDefs.length ? this.toolDefs : undefined,
+        tool_choice: this.toolDefs.length ? "auto" : undefined,
+      });
+      tokens.input += response.usage?.prompt_tokens || 0;
+      tokens.output += response.usage?.completion_tokens || 0;
       addResourceUse({
         ai: {
           [model]: {
-            input: chunk?.usage?.prompt_tokens,
-            output: chunk?.usage?.completion_tokens,
+            input: response.usage?.prompt_tokens,
+            output: response.usage?.completion_tokens,
           },
         },
       });
+
+      const message: any = response.choices[0].message;
+      if (message?.tool_calls?.length) {
+        messages.push(message);
+        for (const call of message.tool_calls) {
+          const handler = this.toolHandlers[call.function.name];
+          if (!handler) continue;
+          let args: any = {};
+          try {
+            args = JSON.parse(call.function.arguments || '{}');
+          } catch {
+            args = { value: call.function.arguments };
+          }
+          const result = await handler(args);
+          messages.push({
+            role: 'tool',
+            name: call.function.name,
+            content: JSON.stringify(result),
+          } as any);
+        }
+        continue;
+      }
+
+      const content = message.content || "";
+      if (content) onStream?.(content);
+      this.chatHistory.push(userMessage);
+      this.chatHistory.push({ role: "assistant", content });
+      this.chatHistory = this.chatHistory.slice(-CHAT_HISTORY_SIZE);
+      return {
+        message: content,
+        usedTokens: tokens,
+      };
     }
-
-    this.chatHistory.push(userMessage);
-    this.chatHistory.push({ role: "assistant", content: full.trim() });
-    this.chatHistory = this.chatHistory.slice(-CHAT_HISTORY_SIZE);
-
-    return {
-      message: full.trim(),
-      usedTokens: tokens,
-    };
   }
 
   private initOpenAI() {
@@ -326,3 +348,10 @@ export type AIConfig<A extends AIDefaultActions = AIDefaultActions> = {
 };
 
 export type AIItemTransformer<T> = (item: Partial<T>) => Partial<T>;
+
+export type AITool = {
+  name: string;
+  description: string;
+  parameters: Record<string, any>;
+  handler: (args: any) => any | Promise<any>;
+};
