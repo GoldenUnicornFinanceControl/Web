@@ -6,12 +6,20 @@ import AIMicrophone from '@components/voice/AIMicrophone';
 import AIActionsParser, { AIActionHandler } from '@features/speech/AIParserManager';
 import { CreditCardAiConfig, creditCardNormalizer, OnboardingCreditCard } from './creditCardAiInfo';
 import { useOnboarding } from './OnboardingContext';
+import Icon from '@components/Icons';
+import { searchBankTool } from './searchTools';
 
 const CreditCardsStep = () => {
   const navigate = useNavigate();
   const { data, update } = useOnboarding();
   const parser = useMemo(
-    () => new AIActionsParser<OnboardingCreditCard>(CreditCardAiConfig, creditCardNormalizer),
+    () =>
+      new AIActionsParser<OnboardingCreditCard>(
+        CreditCardAiConfig,
+        creditCardNormalizer,
+        undefined,
+        [searchBankTool]
+      ),
     []
   );
 
@@ -26,7 +34,10 @@ const CreditCardsStep = () => {
   return (
     <Container screen spaced>
       <ContainerFixedContent>
-        <h2>Credit cards</h2>
+        <h2>
+          <Icon icon={Icon.all.faCreditCard} /> Credit cards
+        </h2>
+        <p>List the credit cards you use and their limits to keep track.</p>
       </ContainerFixedContent>
       <ContainerScrollContent spaced autoScroll>
         <ul>

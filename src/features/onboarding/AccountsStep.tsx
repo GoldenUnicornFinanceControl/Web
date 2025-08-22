@@ -6,12 +6,20 @@ import AIMicrophone from '@components/voice/AIMicrophone';
 import AIActionsParser, { AIActionHandler } from '@features/speech/AIParserManager';
 import { accountNormalizer, AccountAiConfig, OnboardingAccount } from './accountAiInfo';
 import { useOnboarding } from './OnboardingContext';
+import Icon from '@components/Icons';
+import { searchBankTool } from './searchTools';
 
 const AccountsStep = () => {
   const navigate = useNavigate();
   const { data, update } = useOnboarding();
   const parser = useMemo(
-    () => new AIActionsParser<OnboardingAccount>(AccountAiConfig, accountNormalizer),
+    () =>
+      new AIActionsParser<OnboardingAccount>(
+        AccountAiConfig,
+        accountNormalizer,
+        undefined,
+        [searchBankTool]
+      ),
     []
   );
 
@@ -26,7 +34,10 @@ const AccountsStep = () => {
   return (
     <Container screen spaced>
       <ContainerFixedContent>
-        <h2>Bank accounts</h2>
+        <h2>
+          <Icon icon={Icon.all.faUniversity} /> Bank accounts
+        </h2>
+        <p>Tell us which bank accounts you use and their starting balances.</p>
       </ContainerFixedContent>
       <ContainerScrollContent spaced autoScroll>
         <ul>
