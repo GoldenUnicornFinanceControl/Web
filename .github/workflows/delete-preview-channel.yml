@@ -1,0 +1,24 @@
+name: Delete Firebase preview channel
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: 'PR number to delete (channel: pr-<number>)'
+        required: true
+
+jobs:
+  delete:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+      - name: Delete channel
+        run: |
+          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > $HOME/firebase_service_account.json
+          firebase --project ${{ secrets.FIREBASE_PROJECT_ID }} hosting:channel:delete pr-${{ inputs.pr }} --force
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: $HOME/firebase_service_account.json
