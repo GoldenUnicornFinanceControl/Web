@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { ModalScreen } from '@components/conteiners/ModalScreen';
 import SelectField from '@components/fields/SelectField';
@@ -6,6 +6,9 @@ import { DatePicker } from '@components/inputs';
 import Button from '@components/Button';
 import getRepositories from '@repositories';
 import CategoryListItem from '@features/categories/CategoryListItem';
+import AIMicrophone from '@components/voice/AIMicrophone';
+import AIActionsParser, { AIActionHandler } from '@features/speech/AIParserManager';
+import { AITimelineFiltersConfig, TimelineFilterSpeech } from './TimelineFiltersAiInfo';
 import './TimelineFilterScreen.css';
 
 export const PARAM_FROM = 'f';
@@ -24,14 +27,68 @@ const TimelineFilterScreen = () => {
     searchParams.get(PARAM_CATEGORY)?.split(',').filter(Boolean) ?? []
   );
 
+  type TimelineFilterItem = TimelineFilterSpeech & {
+    id: string;
+    name: string;
+    accountsList: { id: string; name: string }[];
+    categoriesList: { id: string; name: string }[];
+  };
+
+  const aiParser = useMemo(
+    () =>
+      new AIActionsParser<TimelineFilterItem, 'update' | 'remove'>(
+        AITimelineFiltersConfig,
+        (item) => item,
+        ({ id, accountsList, categoriesList }) => ({
+          id,
+          accounts: accountsList,
+          categories: categoriesList,
+        })
+      ),
+    []
+  );
+
+  const contextItemRef = useRef<TimelineFilterItem>();
+
   const accountsList = accounts.getCache();
   const rootCategories = categories.getAllRoots();
+
+  useEffect(() => {
+    const contextItem: TimelineFilterItem = {
+      id: 'filters',
+      name: 'filters',
+      accountsList: accountsList.map(acc => ({ id: acc.id, name: acc.name })),
+      categoriesList: rootCategories.flatMap(root => [
+        { id: root.id, name: root.name },
+        ...root.children.map(child => ({ id: child.id, name: child.name })),
+      ]),
+    };
+    contextItemRef.current = contextItem;
+    aiParser.items = [contextItem];
+  }, [aiParser, accountsList, rootCategories]);
 
   const toggleCategory = (id: string) => {
     setSelectedCategories(prev =>
       prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]
     );
   };
+
+  const handleAiAction: AIActionHandler<TimelineFilterItem, 'update' | 'remove'> = useCallback((action, changes) => {
+    const change = changes?.[0];
+    if (action.action === 'remove') {
+      setAccountId(undefined);
+      setFrom(null);
+      setTo(null);
+      setSelectedCategories([]);
+      if (contextItemRef.current) aiParser.items = [contextItemRef.current];
+      return;
+    }
+    if (!change) return;
+    if (change.accountId !== undefined) setAccountId(change.accountId || undefined);
+    if (change.from) setFrom(new Date(change.from));
+    if (change.to) setTo(new Date(change.to));
+    if (change.categories) setSelectedCategories(change.categories);
+  }, [aiParser]);
 
   const applyFilters = () => {
     const params = new URLSearchParams();
@@ -77,6 +134,7 @@ const TimelineFilterScreen = () => {
           </div>
         ))}
       </div>
+      <AIMicrophone parser={aiParser} onAction={handleAiAction} />
       <div className="TimelineFiltersActions">
         <Button text={Lang.commons.cancel} onClick={() => navigate(-1)} />
         <Button text={Lang.timeline.apply} onClick={applyFilters} />
